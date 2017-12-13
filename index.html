@@ -1,0 +1,191 @@
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AMO map</title>
+<script src='https://api.mapbox.com/mapbox.js/v3.1.1/mapbox.js'></script>
+<link href='https://api.mapbox.com/mapbox.js/v3.1.1/mapbox.css' rel='stylesheet' />
+<script src="https://code.jquery.com/jquery-1.12.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/4.3.6/papaparse.min.js"></script>
+<link href='./css/mapstyle.css' rel='stylesheet' />
+</head>
+
+<body>
+<div id="mapHead">Municipal results map</div>
+
+<div id="mapWrap">
+  <div id="mapLegend">
+    <span style="background-color: #cccccc"></span><label>Results pending</label>
+    <span style="background-color: #3EA144"></span><label>Election called</label>
+    <span style="background-color: #7E5BBF"></span><label>Acclaimed</label>
+    <span style="background-color: #c8b9e3"></span><label>Partial Acclaim</label>
+  </div>
+  <div id="mapBtnHolder">
+    <div id="resetMap" class="mapBtn">All municipalities</div>
+    <div id="southMap" class="mapBtn">Southern Ontario</div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<script src='scripts/popup.js'></script>
+<script src='//api.tiles.mapbox.com/mapbox.js/plugins/leaflet-omnivore/v0.3.1/leaflet-omnivore.min.js'></script>
+<script>
+
+var mapDiv = document.getElementById('map');
+var resultsData = [];
+var popup = L.popup({autoPan: false});
+var closeTooltip;
+
+var resetMapBtn = document.getElementById('resetMap');
+var resetSouthBtn = document.getElementById('southMap');
+
+var southWest = L.latLng(40.38, -96.65),
+    northEast = L.latLng(57.11, -72.0),
+    bounds = L.latLngBounds(southWest, northEast);
+
+
+var southWestBounds = L.latLng(42.89, -82.95),
+    northEastBounds = L.latLng(44.91, -74.99),
+    initBounds = L.latLngBounds(southWestBounds, northEastBounds);
+
+var mapOptions = {
+	minZoom: 5,
+    maxZoom: 10,
+    zoomControl: false,
+    maxBounds:bounds
+};
+
+L.mapbox.accessToken = 'pk.eyJ1Ijoid2lsbGlhbWJlbmRhdmlzIiwiYSI6IlVrb3BGVzQifQ.jeHxDCnpXXvAXKfAFEYG-A';
+var map = L.mapbox.map('map', null, mapOptions);
+
+map.fitBounds(initBounds);
+
+var zoomControl = new L.Control.Zoom({ position: 'topright' }).addTo(map);
+
+map.scrollWheelZoom.disable();
+
+var baseLayer = L.mapbox.tileLayer('mapbox.light').addTo(map);
+
+var munLayer = L.geoJson(null, {
+    style: style,
+    onEachFeature: onEachFeature
+    });
+
+
+var prOutline = L.geoJson(null, {
+    style: styleBounds,
+    // onEachFeature: disableFeature
+    });
+
+
+resetMapBtn.addEventListener("click", function(){
+    if (this.className === 'active') {
+        map.fitBounds(bounds);
+    } else {
+        map.fitBounds(bounds);
+    }
+    return false;
+});
+
+resetSouthBtn.addEventListener("click", function(){
+    if (this.className === 'active') {
+        map.fitBounds(initBounds);
+    } else {
+        map.fitBounds(initBounds);
+    }
+    return false;
+});
+
+
+function style(feature) {
+	return {
+	        fillColor: getFillColour(feature.properties),
+	        weight: 0.4,
+	        opacity: 0.6,
+	        color: '#fff',
+	        fillOpacity: 0.5,
+          smoothFactor: 0
+    };
+};
+
+function getFillColour(p) {
+
+  for (i = 0; i < resultsData.length; i++) {
+    if (p.MUNID === parseInt(resultsData[i][0])) {
+      if (resultsData[i][6] == 'yes') {
+        return '#3EA144';
+      } else if (resultsData[i][7] == 'yes') {
+        return '#7E5BBF';
+      } else {
+        return '#cccccc';
+      }
+      break;
+    }
+  }
+}
+
+function styleBounds(feature) {
+	return {
+	        fillColor: '#fff',
+	        weight: 0.6,
+	        opacity: 0.2,
+	        color: '#333',
+	        fillOpacity: 0
+    };
+};
+
+function onEachFeature(feature, layer) {
+    layer.on({
+        mouseover: displayPopup,
+        mouseout: resetHighlight,
+        click: clickPopup
+    });
+}
+
+// function disableFeature() {
+// 	mouseover: {
+// 		// mapDiv.style.pointerEvents = 'none';
+// 	}
+// }
+
+function omniInit(csv, topo, bounds, water, cities) {
+
+    $.get(csv, function (response) {
+      Papa.parse(response, {
+          complete: function(results) {
+          	  console.log('csvresults', results);
+              for (var x = 1; x < results.data.length; x++) {
+                resultsData.push(results.data[x]);
+              }
+	        }
+	      });
+      	  console.log('resultsData', resultsData);
+	});
+
+	var munLayerLoad = omnivore.topojson(topo, null, munLayer)
+    .on('ready', function() {
+        // http://leafletjs.com/reference.html#map-fitbounds
+        // map.fitBounds(munLayerLoad.getBounds());
+  //       console.log('munLayerLoad', munLayerLoad._layers)
+  //       munLayerLoad.eachLayer(function(layer) {
+		// 		// downloadData(i);
+		// 		console.log('each municipality');
+		// });
+    }).addTo(map);
+
+	var prOutlineLoad = omnivore.topojson(bounds, null, prOutline)
+    .addTo(map);
+
+    var waterLabelLoad = omnivore.geojson(water, null, waterLabels)
+    .addTo(map);
+
+    var cityLabelLoad = omnivore.geojson(cities, null, cityLabels)
+    .addTo(map);
+};
+
+omniInit('./data/results.csv','./json/mun-land-clean.json', './json/on-boundary.json', './json/water.geojson', './json/cities.geojson');
+         
+       
+</script>
+</body>
+</html>
