@@ -8,23 +8,43 @@
 <script src="https://code.jquery.com/jquery-1.12.0.min.js"></script>
 <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/4.3.6/papaparse.min.js"></script> -->
 <link href='./css/mapstyle.css' rel='stylesheet' />
+<link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.6-rc.0/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.6-rc.0/js/select2.min.js"></script>
+<!-- <script src="https://unpkg.com/leaflet-responsive-popup@0.2.0/leaflet.responsive.popup.js"></script> -->
+<!-- <link rel="stylesheet" href="https://unpkg.com/leaflet-responsive-popup@0.2.0/leaflet.responsive.popup.css" /> -->
+
 </head>
 
 <body>
-<div id="mapHead">Municipal results map</div>
+<div id="mapHead">Results map</div>
 
 <div id="mapWrap">
+  <div id="mapDropdownWrap">
+      <select id="mapDropdown" class="js-example-basic-single">
+       <option value="" disabled selected>Select a municipality</option>
+      </select>
+  </div>
   <div id="mapLegend">
     <span style="background-color: #cccccc"></span><label>Results pending</label>
     <span style="background-color: #3EA144"></span><label>Election called</label>
-    <span style="background-color: #7E5BBF"></span><label>Acclaimed</label>
-    <span style="background-color: #c8b9e3"></span><label>Partial Acclaim</label>
+    <span style="background-color: #18401b"></span><label>Acclaimed</label>
+    <!-- <span style="background-color: #c8b9e3"></span><label>Partial Acclaim</label> -->
   </div>
-  <div id="mapBtnHolder">
-    <div id="resetMap" class="mapBtn">All municipalities</div>
-    <div id="southMap" class="mapBtn">Southern Ontario</div>
+
+  <div id="map">
+    <div id="mapBtnHolder">
+      <div id="resetMap" class="mapBtn">All municipalities</div>
+      <div id="southMap" class="mapBtn">Southern Ontario</div>
+    </div>
   </div>
-  <div id="map"></div>
+
+</div>
+
+<div id="mapTable">
+    <div id="municipalID">
+        <p>MunicipalityIMISID: <span id="sqlHolder"></span></p>
+        <p>Municipal Assessment ID: <span id="sqlAssessment"></span></p>
+    </div>
 </div>
 
 <script src='//api.tiles.mapbox.com/mapbox.js/plugins/leaflet-omnivore/v0.3.1/leaflet-omnivore.min.js'></script>
@@ -32,13 +52,23 @@
 
 var mapDiv = document.getElementById('map');
 
+var mapLoaded = false;
+
 var resultsData = [];
+var featureById = [];
+
+var mapFillColour = 'black';
+var mapElectedColour = 'green';
+var noMatchColour = 'red';
+var matchedArea = false;
+var electionResults = false;
 
 // var amoUrl = 'http://k9test.amo.on.ca/rest/customtableitem.customtable.Municipality_ElectionData?format=json&hash=bc935c67d309df9a18350c964b23cdc710db366230e874629b4fa601903d8f68';
 // console.log(amoUrl);
 // var jsonResult = [];
 
 var popup = L.popup({autoPan: false});
+// var popup = L.responsivePopup({ autoPanPadding: [50,50] });
 var closeTooltip;
 
 var resetMapBtn = document.getElementById('resetMap');
@@ -62,6 +92,8 @@ var mapOptions = {
 
 function mapLoad() {
 
+      mapLoaded = true;
+
       L.mapbox.accessToken = 'pk.eyJ1Ijoid2lsbGlhbWJlbmRhdmlzIiwiYSI6IlVrb3BGVzQifQ.jeHxDCnpXXvAXKfAFEYG-A';
       var map = L.mapbox.map('map', null, mapOptions);
 
@@ -84,19 +116,44 @@ function mapLoad() {
           // onEachFeature: disableFeature
           });
 
-      var munLayerLoad = omnivore.topojson('./json/mun-land-clean.json', null, munLayer)
-        .on('ready', function() {
-            // http://leafletjs.com/reference.html#map-fitbounds
-            // map.fitBounds(munLayerLoad.getBounds());
-      //       console.log('munLayerLoad', munLayerLoad._layers)
-      //       munLayerLoad.eachLayer(function(layer) {
-        //    // downloadData(i);
-        //    console.log('each municipality');
-        // });
-        }).addTo(map);
+      var munLayerLoad = omnivore.topojson('./json/mun-land-clean.json', null, munLayer).addTo(map);
 
-      var prOutlineLoad = omnivore.topojson('./json/on-boundary.json', null, prOutline)
-        .addTo(map);
+      var prOutlineLoad = omnivore.topojson('./json/on-boundary.json', null, prOutline).addTo(map);
+
+
+      //joining data with TopoJSON based on "ASSESSMENT" property
+
+      munLayerLoad.on('ready', function() {
+              munLayer.eachLayer(function(layer) {
+                featureJoinByProperty(layer.feature.properties, resultsData, "ASSESSMENT");
+              });
+
+              munLayer.setStyle(style);
+
+      });
+
+      /////////////////////////////////////////////////////////////////////////////////////////////
+      //join function//
+      /////////////////////////////////////////////////////////////////////////////////////////////
+
+      //input arguments:
+      //fProps: geoJson feature properties object
+      //dTable: array of objects containing properties to be joined
+      //joinKey: property to use to perform the join
+      function featureJoinByProperty(fProps, dTable, joinKey) {
+        var keyVal = fProps[joinKey];
+        var match = {};
+        for (var i = 0; i < dTable.length; i++) {
+          if (dTable[i][joinKey] === keyVal) {
+            match = dTable[i];
+            for (key in match) {
+              if (!(key in fProps)) {
+                fProps[key] = match[key];
+              }
+            }
+          }
+        }
+      };
 
 
       resetMapBtn.addEventListener("click", function(){
@@ -118,9 +175,9 @@ function mapLoad() {
       });
 
 
-      function style(feature) {
+      function initStyle(feature) {
       	return {
-      	        fillColor: getFillColour(feature.properties),
+      	        fillColor: '#cccccc',
       	        weight: 0.4,
       	        opacity: 0.6,
       	        color: '#fff',
@@ -129,23 +186,55 @@ function mapLoad() {
           };
       };
 
-      function getFillColour(p) {
-      
-        for (i = 0; i < resultsData.length; i++) {
-          
-          if (p.ASSESSMENT === resultsData[i].ASSESSMENT) {
-            if (resultsData[i].IsPublished == true) {
-              return '#3EA144';
-            } else if (resultsData[i].IsPublished == false) {
-              return '#7E5BBF';
-            } else {
-              return '#cccccc';
+      function style(feature) {
+        return {
+                fillColor: matchComplete(feature.properties),
+                weight: 0.4,
+                opacity: 0.6,
+                color: '#fff',
+                fillOpacity: 0.5,
+                smoothFactor: 0
+            };
+      };
+
+      function matchComplete(p) {
+        electionResults = null;
+        matchedArea = null;
+        
+        var matchCheck = false;
+
+        if ( p.hasOwnProperty('Candidate') ) {
+          for (i = 0; i < p.Candidate.length; i++) {
+                matchedArea = true;
+                var electedCheck = parseInt(p.Candidate[i].Elected);
+                // console.log('elected check: ', electedCheck);
+                if (matchCheck == false) {
+                  if (electedCheck == 1) {
+                    electionResults = true;
+                    matchCheck = true;
+                  } else {
+                    electionResults = false;
+                  }
+                }
             }
-            break;
+          } else {
+            matchedArea = false;
           }
+        return getFillColour();
+      };
+
+
+      function getFillColour() {
+        if (electionResults == true) {
+          return '#3EA144';
+        } else if (electionResults == false) {
+          return '#cccccc';
+        } else if (matchedArea == false) {
+          return '#18401b';
+        } else {
+          return 'coral';
         }
-        return 'red';
-      }
+      };
 
       function styleBounds(feature) {
       	return {
@@ -159,38 +248,80 @@ function mapLoad() {
 
       function onEachFeature(feature, layer) {
           layer.on({
-              mouseover: displayPopup,
+              mousemove: displayPopup,
               mouseout: resetHighlight,
               click: clickPopup
           });
-      }
+          featureById[feature.properties.ASSESSMENT] = layer;
+      };
+
+      function getPopupContent(p) {
+
+          var candidateFound = false;
+          var priorCall = false;
+          var popupMatch = null;
+
+          function trimName (name) {
+              var stringLength = 28;
+              var trimmedString = name.substring(0, stringLength);
+              var nameLength = name.length;
+              console.log(name.length);
+              if (nameLength >= stringLength) {
+                return trimmedString + '...';
+              } else {
+                return trimmedString;
+              }
+          };
+
+          if ( p.hasOwnProperty('Candidate') ) {
+              popupMatch = true;
+              for (n = 0; n < p.Candidate.length; n++) {
+
+                var electedCheck = parseInt(p.Candidate[n].Elected);
+                var firstName = p.Candidate[n].CandidateFirstName;
+                var lastName = p.Candidate[n].CandidateLastName;
+                var candidateVotes = p.Candidate[n].Votes;
+
+                function formatNumber (num) {
+                    return num.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1,")
+                }
+
+                if (candidateFound == false) {
+                  if (electedCheck == 1) {
+                    popup.setContent( '<span id="popupBanner" style="background-color:#3EA144">' + trimName(p.LEGAL_NAME) + '</span>' +
+                      '<p><b>' + firstName + ' ' + lastName + ' </b>has been elected Mayor</p>' +
+                      // '<p><b>Votes:</b> ' + formatNumber(candidateVotes) + '</p>' +
+                            '<p>*Click to see the full results below</p>', {maxWidth: "auto"}
+                      );
+                    candidateFound = true;
+
+                  } else {
+                    popup.setContent(
+                            '<span id="popupBanner" style="background-color:#d3d3d3">' + trimName(p.LEGAL_NAME) + '</span>' +
+                            '<p><b>Elected: </b>Results pending</p>' +
+                            '<p>*Click to see the full results below</p>', {maxWidth: "auto"}
+                            );
+                  }
+                }
+              }
+                      // break;
+            } else if (popupMatch != true){
+                if (priorCall == false) {
+                   priorCall = true;
+                   popup.setContent(
+                    '<span id="popupBanner" style="background-color:#18401b">' + trimName(p.LEGAL_NAME) + '</span>' +
+                    '<p><b>Elected: </b>Called prior</p>' +
+                    '<p>*Click to see the full results below</p>', {maxWidth: "auto"}
+                  );
+                }
+            }
+      };
 
       function displayPopup(e) {
           var layer = e.target;
           var p = layer.feature.properties;
 
-          for (i = 0; i < resultsData.length; i++) {
-            if (p.ASSESSMENT === resultsData[i].ASSESSMENT) {
-              if (resultsData[i].IsPublished == true) {
-                  popup.setContent(
-                          '<span id="popupBanner" style="background-color:' + getFillColour(p) + '">' + p.LEGAL_NAME + '</span>' +
-                    '<p><b>Population:</b> ' + parseInt(resultsData[i].Population) + '</p>' +
-                    '<p><b>Votes:</b> ' + resultsData[i].NumberofVoters + '</p>' +
-                          '<p>*Click to see the full results below</p>', {maxWidth: "auto"}
-                    );
-                    } else {
-                          popup.setContent(
-                          '<span id="popupBanner" style="background-color:#cccccc">' + p.LEGAL_NAME + '</span>' +
-                          '<p><b>Elected: </b>Results pending</p>' +
-                          '<p><b>Votes: </b>counting</p>' +
-                          '<p>*Click to see the full results below</p>', {maxWidth: "auto"}
-                          );
-                      }
-                      break;
-              } else {
-                  // break;
-            }
-          }
+          getPopupContent(p);
 
           popup.setLatLng(layer.getBounds().getCenter());
           map.openPopup(popup);
@@ -212,82 +343,73 @@ function mapLoad() {
 
        function clickPopup(e) {
           var layer = e.target;
-            var p = layer.feature.properties;
+          var p = layer.feature.properties;
+          
                   map.fitBounds(layer.getBounds());
                   map.openPopup(popup);
-              };
+
+          document.getElementById('sqlHolder').innerHTML = p.MunicipalityIMISID;
+          document.getElementById('sqlAssessment').innerHTML = p.ASSESSMENT;
+
+          };
 
       function resetHighlight(e) {
           munLayer.resetStyle(e.target);
           closeTooltip = window.setTimeout(function() {
                 map.closePopup();
             }, 100);
-      }; 
+      };
+
+      $('#mapDropdown').on("change", function(e) {
+
+         var mapDropdownValue = $('#mapDropdown').val();
+
+         map.fitBounds(featureById[mapDropdownValue].getBounds(), { padding: [20, 20] });
+         featureById[mapDropdownValue].fire('mousemove');
+         featureById[mapDropdownValue].fire('click');
+
+      });
+
 };
 
-// function disableFeature() {
-// 	mouseover: {
-// 		// mapDiv.style.pointerEvents = 'none';
-// 	}
-// }
 
 $(document).ready(function(){
   console.log('ready');
+  $('.js-example-basic-single').select2();
+  getResults();
+});
 
-  // function omniInit(json, topo, bounds, water, cities) {
-
+function getResults() {
+    console.log('fetched');
     $.ajax({
-        url: './data/results.json',
+        url: 'http://cdn.amo.on.ca/election/2018/status-clean',
         dataType: "json",
         success: function(data){
+          resultsData = [];
           console.log('success');
-            // console.log('data', data);
-            // console.log('data1', data.customtableitem_customtable_Municipality_ElectionDatas);
-            // console.log('data2', data.customtableitem_customtable_Municipality_ElectionDatas[0]);
-            // console.log('data3', data.customtableitem_customtable_Municipality_ElectionDatas[0].customtable_Municipality_ElectionData);
 
-          var dataOrg = data.customtableitem_customtable_Municipality_ElectionDatas[0].customtable_Municipality_ElectionData;
+          for (var x = 1; x < data.length; x++) {
+              resultsData.push(data[x]);
 
-          console.log('dataOrg', dataOrg[1]);
-
-          for (var x = 1; x < dataOrg.length; x++) {
-              resultsData.push(dataOrg[x]);
+              var s = $('#mapDropdown');
+              $('<option />', {value: data[x].ASSESSMENT, text: data[x].MunicipalityName}).appendTo(s);
           }
+
           console.log('jsonResult', resultsData);
-          mapLoad();
+
+          if (mapLoaded == false) {
+            mapLoad();
+          }
+
+          // setTimeout(getResults, 5000);
         },
         error: function(data) {
           console.log('error');
+          setTimeout(getResults, 5000);
         }
     });
-
     
-
-   //    $.get(csv, function (response) {
-   //      Papa.parse(response, {
-   //          complete: function(results) {
-   //          	  console.log('csvresults', results);
-   //              for (var x = 1; x < results.data.length; x++) {
-   //                resultsData.push(results.data[x]);
-   //              }
-  	//         }
-  	//       });
-   //      	  console.log('resultsData', resultsData);
-  	// });
-
-  	
-
-      // var waterLabelLoad = omnivore.geojson(water, null, waterLabels)
-      // .addTo(map);
-
-      // var cityLabelLoad = omnivore.geojson(cities, null, cityLabels)
-      // .addTo(map);
-  // };
-
-  // omniInit('./data/results.json', './json/mun-land-clean.json', './json/on-boundary.json', './json/water.geojson', './json/cities.geojson');
-
-});
-         
+};       
        
 </script>
 </body>
