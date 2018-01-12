@@ -19,7 +19,7 @@ body {
   position: relative;
   display: block;
   margin: 0 auto;
-  height:500px;
+  height:550px;
   max-width:750px;
 }
 
@@ -27,34 +27,57 @@ body {
   width:100%;
   height:500px;
   border:1px solid #d3d3d3;
+  position: relative;
+}
+
+#mapDropdownWrap {
+	display: inline-block;
+    margin: 10px auto;
+    width: 300px;
+    float: left;
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+
+#mapDropdown {
+	width:100%;
+/*	display: block;
+	width:300px;
+	margin: 10px 10px;*/
 }
 
 /*MAP BTN*/
 
 #mapBtnHolder {
-    position: absolute;
+	position: absolute;
     display: inline-block;
     /* float: right; */
-    top: 39px;
-    left: 10px;
+    top: 10px;
+    right: 45px;
     /* right: 0; */
     z-index: 1;
     margin: auto;
     text-align: center;
-    margin-bottom: 20px;
+    /* margin-bottom: 20px; */
 }
 
 .mapBtn {
-	display: inline-block;
-	width:125px;
-	background-color: #fff;
-	padding:10px 20px;
-	color:#333;
-	border-radius:3px;
-	font-size:10px;
-	box-shadow: 1px 1px 1px #d3d3d3;
-	text-transform: uppercase;
-	letter-spacing: 1px;
+    display: inline-block;
+    width: 145px;
+    background-color: #fff;
+    padding: 5px 12px;
+    color: #333;
+    border-radius: 3px;
+    font-size: 10px;
+    box-shadow: 1px 1px 1px #d3d3d3;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+#mapBtnHolder div:first-of-type {
+	margin-right: 6px;
 }
 
 .mapBtn:hover {
@@ -66,11 +89,20 @@ body {
     border: none;
 }
 
+#mapTable {
+	display: block;
+	width:100%;
+	font-size:20px;
+	margin-top: 10px;
+	text-align:center;
+}
+
 /*LEGEND*/
 
 #mapLegend {
-	display: block;
-	margin:10px auto;
+    display: inline-block;
+    margin: 14px auto 14px 10px;
+    vertical-align: middle;
 }
 
 #mapLegend span {
@@ -92,8 +124,6 @@ body {
 
 .leaflet-popup {
 	min-width: 250px;
-	/*width:100% !important;*/
-	/*max-width: 300px !important;*/
 	pointer-events: none;
 }
 
