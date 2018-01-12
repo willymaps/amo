@@ -382,7 +382,7 @@ $(document).ready(function(){
 function getResults() {
     console.log('fetched');
     $.ajax({
-        url: 'http://cdn.amo.on.ca/election/2018/status-clean',
+        url: './data/resultsclean.json',
         dataType: "json",
         success: function(data){
           resultsData = [];
